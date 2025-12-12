@@ -161,7 +161,9 @@
               await loadPitchContent(pitchIds);
               
               if (storedCompleted) {
-                setCompletedPitches(JSON.parse(storedCompleted));
+                const loaded = JSON.parse(storedCompleted);
+                // Ensure uniqueness when loading from localStorage
+                setCompletedPitches([...new Set(loaded)]);
               }
               
               if (storedData) {
@@ -228,11 +230,12 @@
       };
 
       const markPitchComplete = () => {
-        if (!completedPitches.includes(currentPage)) {
-          const newCompleted = [...completedPitches, currentPage];
-          setCompletedPitches(newCompleted);
-          localStorage.setItem('completedPitches', JSON.stringify(newCompleted));
-        }
+        // Use Set to ensure uniqueness and prevent duplicates
+        const completedSet = new Set(completedPitches);
+        completedSet.add(currentPage);
+        const newCompleted = Array.from(completedSet);
+        setCompletedPitches(newCompleted);
+        localStorage.setItem('completedPitches', JSON.stringify(newCompleted));
         
         setStatus({ 
           type: 'success', 
