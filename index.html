@@ -106,12 +106,6 @@
         '4': 'Highly effective'
       };
 
-      const fetchAndParseJSON = async (url) => {
-        const response = await fetch(url);
-        const text = await response.text();
-        return JSON.parse(text);
-      };
-
       // Randomly select 5 pitches from available pool
       const getRandomPitches = () => {
         const shuffled = [...ALL_PITCH_IDS].sort(() => Math.random() - 0.5);
@@ -127,8 +121,7 @@
               const data = await response.json();
               // Fix image path to use correct location
               if (data.image && !data.image.startsWith('http')) {
-                // Assuming images are in the same directory structure
-                data.image = `./${data.image}`;
+                data.image = `./data/${data.image}`;
               }
               contents.push(data);
             } else {
@@ -235,13 +228,15 @@
       };
 
       const markPitchComplete = () => {
-        const newCompleted = [...completedPitches, currentPage];
-        setCompletedPitches(newCompleted);
-        localStorage.setItem('completedPitches', JSON.stringify(newCompleted));
+        if (!completedPitches.includes(currentPage)) {
+          const newCompleted = [...completedPitches, currentPage];
+          setCompletedPitches(newCompleted);
+          localStorage.setItem('completedPitches', JSON.stringify(newCompleted));
+        }
         
         setStatus({ 
           type: 'success', 
-          message: `Pitch ${currentPage} saved! Continue to next pitch.` 
+          message: `Pitch ${currentPage} saved! ${currentPage < 5 ? 'Continue to next pitch.' : 'Ready to submit!'}` 
         });
       };
 
@@ -256,13 +251,14 @@
           const pitch = samplesData[i];
           const pitchContent = pitchesContent[i] || {};
           const pitchId = assignedPitches[i];
-          const investmentAmount = pitchContent.loanAmount 
-            ? (parseFloat(pitchContent.loanAmount) * parseInt(pitch.investmentPercentage) / 100).toFixed(2)
-            : '0';
+          const loanAmount = parseFloat(pitchContent.loanAmount) || 0;
+          const investmentPercentage = parseInt(pitch.investmentPercentage) || 0;
+          const investmentAmount = (loanAmount * investmentPercentage / 100).toFixed(2);
 
           emailBody += `PITCH ${i + 1} - ID: ${pitchId}\n`;
           emailBody += `Name: ${pitchContent.Name || 'N/A'}\n`;
-          emailBody += `Investment: ${pitch.investmentPercentage}% (${investmentAmount})\n\n`;
+          emailBody += `Loan Amount: $${loanAmount}\n`;
+          emailBody += `Investment: ${investmentPercentage}% ($${investmentAmount})\n\n`;
           
           emailBody += `Economic Credibility: ${pitch.economicCredibility}\n`;
           emailBody += `Environmental Credibility: ${pitch.environmentalCredibility}\n`;
@@ -293,7 +289,11 @@
           if (validateEvaluatorPage()) {
             const success = await assignNewPitches(evaluatorId);
             if (success) {
-              setCurrentPage(1);
+              setFadeState('hidden');
+              setTimeout(() => {
+                setCurrentPage(1);
+                setFadeState('visible');
+              }, 300);
             }
           }
         } else if (currentPage < 5) {
@@ -338,11 +338,6 @@
             type: 'success', 
             message: 'Email client opened! Please send the email to complete your submission. After sending, you can close this page.' 
           });
-          
-          localStorage.removeItem('assignedPitches');
-          localStorage.removeItem('evaluatorEmail');
-          localStorage.removeItem('completedPitches');
-          localStorage.removeItem('samplesData');
         }, 1000);
       };
 
@@ -371,7 +366,7 @@
               <div className="space-y-6">
                 <div>
                   <label className="block text-lg font-semibold text-gray-800 mb-3">
-                    Write your email below:
+                    Enter your email address:
                   </label>
                   <input
                     type="email"
@@ -468,7 +463,10 @@
                   <img 
                     src={currentPitch.image} 
                     alt={currentPitch.Name || 'Pitch image'}
-                    className="w-full h-auto rounded-lg shadow-md"
+                    className="w-full h-auto rounded-lg shadow-md max-h-96 object-cover"
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                    }}
                   />
                 </div>
               )}
@@ -477,7 +475,7 @@
               </h2>
               {currentPitch.loanAmount && (
                 <div className="mb-3">
-                  <div className="text-sm text-gray-600 mb-1">Asked amount</div>
+                  <div className="text-sm text-gray-600 mb-1">Loan Amount Requested</div>
                   <div className="inline-block bg-green-600 text-white px-5 py-2 rounded-md font-bold text-xl">
                     ${currentPitch.loanAmount}
                   </div>
@@ -486,8 +484,6 @@
               <p className="text-gray-700 text-lg leading-relaxed mb-4">
                 {currentPitch.description || 'Loading pitch description...'}
               </p>
-              
-              
             </div>
 
             <p className="text-gray-600 mb-6">
@@ -552,7 +548,8 @@
                 </label>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {[25, 50, 75, 100].map((percentage) => {
-                    const amount = (parseFloat(currentPitch.loanAmount) * percentage / 100).toFixed(2);
+                    const loanAmount = parseFloat(currentPitch.loanAmount) || 0;
+                    const amount = (loanAmount * percentage / 100).toFixed(2);
                     const isSelected = currentSample.investmentPercentage === percentage.toString();
                     return (
                       <button
